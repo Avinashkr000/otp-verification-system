@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"otp-backend/config"
 	"otp-backend/models"
+	"otp-backend/utils"
+	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -105,8 +107,27 @@ func GenerateOTP(c *gin.Context) {
 		return
 	}
 
-	// In production, send OTP via email/SMS service
-	// For development, we'll return it in the response
+	// Send OTP via SMS if phone number is provided
+	if req.Phone != "" {
+		// Check if Twilio is configured
+		if os.Getenv("TWILIO_ACCOUNT_SID") != "" {
+			// Send via Twilio
+			if err := utils.SendOTPSMS(req.Phone, otpCode); err != nil {
+				fmt.Printf("Failed to send SMS via Twilio: %v\n", err)
+				// Don't fail the request, just log the error
+			}
+		} else {
+			fmt.Printf("\n⚠️  Twilio not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_PHONE_NUMBER\n")
+		}
+	}
+
+	// Send OTP via Email if email is provided
+	if req.Email != "" {
+		// TODO: Implement email sending (SendGrid, AWS SES, etc.)
+		fmt.Printf("\n📧 Email OTP sending not yet implemented\n")
+	}
+
+	// Log for development
 	fmt.Printf("\n=== OTP Generated ===\n")
 	fmt.Printf("OTP ID: %s\n", otp.ID)
 	fmt.Printf("OTP Code: %s\n", otpCode)
@@ -115,15 +136,21 @@ func GenerateOTP(c *gin.Context) {
 	fmt.Printf("Expires At: %s\n", otp.ExpiresAt.Format(time.RFC3339))
 	fmt.Printf("===================\n\n")
 
+	// Response data
+	responseData := gin.H{
+		"otp_id":     otp.ID,
+		"expires_at": otp.ExpiresAt,
+	}
+
+	// Only include OTP code in development mode
+	if os.Getenv("ENVIRONMENT") != "production" {
+		responseData["otp_code"] = otpCode
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "OTP sent successfully",
-		"data": gin.H{
-			"otp_id":     otp.ID,
-			"expires_at": otp.ExpiresAt,
-			// Remove this in production - only for development/testing
-			"otp_code": otpCode,
-		},
+		"data":    responseData,
 	})
 }
 
@@ -303,6 +330,15 @@ func ResendOTP(c *gin.Context) {
 		return
 	}
 
+	// Resend OTP via SMS if phone number is provided
+	if oldOTP.Phone != "" {
+		if os.Getenv("TWILIO_ACCOUNT_SID") != "" {
+			if err := utils.SendOTPSMS(oldOTP.Phone, otpCode); err != nil {
+				fmt.Printf("Failed to send SMS via Twilio: %v\n", err)
+			}
+		}
+	}
+
 	// Log for development
 	fmt.Printf("\n=== OTP Resent ===\n")
 	fmt.Printf("New OTP ID: %s\n", newOTP.ID)
@@ -310,15 +346,21 @@ func ResendOTP(c *gin.Context) {
 	fmt.Printf("Expires At: %s\n", newOTP.ExpiresAt.Format(time.RFC3339))
 	fmt.Printf("==================\n\n")
 
+	// Response data
+	responseData := gin.H{
+		"otp_id":     newOTP.ID,
+		"expires_at": newOTP.ExpiresAt,
+	}
+
+	// Only include OTP code in development mode
+	if os.Getenv("ENVIRONMENT") != "production" {
+		responseData["otp_code"] = otpCode
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "OTP resent successfully",
-		"data": gin.H{
-			"otp_id":     newOTP.ID,
-			"expires_at": newOTP.ExpiresAt,
-			// Remove this in production
-			"otp_code": otpCode,
-		},
+		"data":    responseData,
 	})
 }
 
