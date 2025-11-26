@@ -108,38 +108,83 @@ func GenerateOTP(c *gin.Context) {
 	}
 
 	// Send OTP via SMS if phone number is provided
+	var smsStatus string = "not_sent"
 	if req.Phone != "" {
 		// Check if Twilio is configured
-		if os.Getenv("TWILIO_ACCOUNT_SID") != "" {
+		if os.Getenv("TWILIO_ACCOUNT_SID") != "" && os.Getenv("TWILIO_AUTH_TOKEN") != "" && os.Getenv("TWILIO_PHONE_NUMBER") != "" {
+			fmt.Printf("\n📱 SMS Sending Process Started...\n")
+			fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+			fmt.Printf("📤 Destination: %s\n", req.Phone)
+			fmt.Printf("🔐 OTP Code: %s\n", otpCode)
+			fmt.Printf("🔑 Twilio SID: %s...\n", os.Getenv("TWILIO_ACCOUNT_SID")[:10])
+			fmt.Printf("📞 From Number: %s\n", os.Getenv("TWILIO_PHONE_NUMBER"))
+			fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+
 			// Send via Twilio
 			if err := utils.SendOTPSMS(req.Phone, otpCode); err != nil {
-				fmt.Printf("Failed to send SMS via Twilio: %v\n", err)
-				// Don't fail the request, just log the error
+				fmt.Printf("\n❌ SMS Delivery Failed!\n")
+				fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+				fmt.Printf("Error: %v\n", err)
+				fmt.Printf("\n💡 Possible Reasons:\n")
+				fmt.Printf("   1. Phone number not verified (Trial Account)\n")
+				fmt.Printf("   2. Invalid Twilio credentials\n")
+				fmt.Printf("   3. Insufficient Twilio credits\n")
+				fmt.Printf("   4. Wrong phone number format\n")
+				fmt.Printf("\n🔧 Solutions:\n")
+				fmt.Printf("   1. Verify phone at: https://console.twilio.com/\n")
+				fmt.Printf("   2. Check .env Twilio credentials\n")
+				fmt.Printf("   3. Ensure phone format: +919876543210\n")
+				fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n")
+				smsStatus = "failed"
+			} else {
+				fmt.Printf("\n✅ SMS Sent Successfully!\n")
+				fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+				fmt.Printf("✓ Message queued for delivery\n")
+				fmt.Printf("✓ User will receive SMS shortly\n")
+				fmt.Printf("✓ Check Twilio Console for delivery status\n")
+				fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n")
+				smsStatus = "sent"
 			}
 		} else {
-			fmt.Printf("\n⚠️  Twilio not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_PHONE_NUMBER\n")
+			fmt.Printf("\n⚠️  Twilio Configuration Missing!\n")
+			fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+			fmt.Printf("Required in .env file:\n")
+			fmt.Printf("  TWILIO_ACCOUNT_SID=ACxxxxxxxxxx\n")
+			fmt.Printf("  TWILIO_AUTH_TOKEN=your_token\n")
+			fmt.Printf("  TWILIO_PHONE_NUMBER=+1234567890\n")
+			fmt.Printf("\n📚 Setup Guide: TWILIO_SETUP.md\n")
+			fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n")
+			smsStatus = "twilio_not_configured"
 		}
 	}
 
 	// Send OTP via Email if email is provided
 	if req.Email != "" {
-		// TODO: Implement email sending (SendGrid, AWS SES, etc.)
-		fmt.Printf("\n📧 Email OTP sending not yet implemented\n")
+		fmt.Printf("\n📧 Email OTP Feature\n")
+		fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+		fmt.Printf("Status: Not yet implemented\n")
+		fmt.Printf("TODO: Integrate SendGrid/AWS SES/Gmail\n")
+		fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n")
 	}
 
 	// Log for development
-	fmt.Printf("\n=== OTP Generated ===\n")
-	fmt.Printf("OTP ID: %s\n", otp.ID)
-	fmt.Printf("OTP Code: %s\n", otpCode)
-	fmt.Printf("Email: %s\n", req.Email)
-	fmt.Printf("Phone: %s\n", req.Phone)
-	fmt.Printf("Expires At: %s\n", otp.ExpiresAt.Format(time.RFC3339))
-	fmt.Printf("===================\n\n")
+	fmt.Printf("\n═══════════════════════════════════════════\n")
+	fmt.Printf("         🔐 OTP GENERATED                 \n")
+	fmt.Printf("═══════════════════════════════════════════\n")
+	fmt.Printf("OTP ID:      %s\n", otp.ID)
+	fmt.Printf("OTP Code:    %s\n", otpCode)
+	fmt.Printf("Email:       %s\n", req.Email)
+	fmt.Printf("Phone:       %s\n", req.Phone)
+	fmt.Printf("SMS Status:  %s\n", smsStatus)
+	fmt.Printf("Expires At:  %s\n", otp.ExpiresAt.Format("2006-01-02 15:04:05"))
+	fmt.Printf("Valid For:   5 minutes\n")
+	fmt.Printf("═══════════════════════════════════════════\n\n")
 
 	// Response data
 	responseData := gin.H{
 		"otp_id":     otp.ID,
 		"expires_at": otp.ExpiresAt,
+		"sms_status": smsStatus,
 	}
 
 	// Only include OTP code in development mode
@@ -167,9 +212,16 @@ func VerifyOTP(c *gin.Context) {
 		return
 	}
 
+	fmt.Printf("\n🔍 OTP Verification Attempt\n")
+	fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+	fmt.Printf("OTP ID: %s\n", req.OTPID)
+	fmt.Printf("Code Provided: %s\n", req.OTPCode)
+	fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+
 	// Find OTP record
 	var otp models.OTP
 	if err := config.DB.Where("id = ?", req.OTPID).First(&otp).Error; err != nil {
+		fmt.Printf("❌ OTP not found in database\n\n")
 		c.JSON(http.StatusNotFound, gin.H{
 			"success": false,
 			"message": "OTP not found",
@@ -179,6 +231,7 @@ func VerifyOTP(c *gin.Context) {
 
 	// Check if OTP is already verified
 	if otp.IsVerified {
+		fmt.Printf("❌ OTP already used\n\n")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "OTP already verified",
@@ -188,6 +241,7 @@ func VerifyOTP(c *gin.Context) {
 
 	// Check if OTP has expired
 	if time.Now().After(otp.ExpiresAt) {
+		fmt.Printf("❌ OTP expired at: %s\n\n", otp.ExpiresAt.Format("2006-01-02 15:04:05"))
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "OTP has expired",
@@ -197,6 +251,7 @@ func VerifyOTP(c *gin.Context) {
 
 	// Check maximum attempts (3 attempts allowed)
 	if otp.AttemptCount >= 3 {
+		fmt.Printf("❌ Maximum attempts exceeded\n\n")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "Maximum verification attempts exceeded",
@@ -210,6 +265,7 @@ func VerifyOTP(c *gin.Context) {
 
 	// Verify OTP code
 	if otp.OTPCode != req.OTPCode {
+		fmt.Printf("❌ Invalid OTP code. Attempts remaining: %d\n\n", 3-otp.AttemptCount)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": fmt.Sprintf("Invalid OTP code. %d attempts remaining", 3-otp.AttemptCount),
@@ -254,6 +310,14 @@ func VerifyOTP(c *gin.Context) {
 		config.DB.Create(&user)
 	}
 
+	fmt.Printf("\n✅ OTP VERIFIED SUCCESSFULLY!\n")
+	fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+	fmt.Printf("User ID: %s\n", user.ID)
+	fmt.Printf("Email: %s\n", user.Email)
+	fmt.Printf("Phone: %s\n", user.Phone)
+	fmt.Printf("Verified At: %s\n", now.Format("2006-01-02 15:04:05"))
+	fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n")
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "OTP verified successfully",
@@ -280,9 +344,15 @@ func ResendOTP(c *gin.Context) {
 		return
 	}
 
+	fmt.Printf("\n🔄 OTP Resend Request\n")
+	fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+	fmt.Printf("OTP ID: %s\n", req.OTPID)
+	fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+
 	// Find old OTP record
 	var oldOTP models.OTP
 	if err := config.DB.Where("id = ?", req.OTPID).First(&oldOTP).Error; err != nil {
+		fmt.Printf("❌ OTP not found\n\n")
 		c.JSON(http.StatusNotFound, gin.H{
 			"success": false,
 			"message": "OTP not found",
@@ -292,6 +362,7 @@ func ResendOTP(c *gin.Context) {
 
 	// Check if already verified
 	if oldOTP.IsVerified {
+		fmt.Printf("❌ OTP already verified\n\n")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "OTP already verified",
@@ -331,25 +402,36 @@ func ResendOTP(c *gin.Context) {
 	}
 
 	// Resend OTP via SMS if phone number is provided
+	var smsStatus string = "not_sent"
 	if oldOTP.Phone != "" {
 		if os.Getenv("TWILIO_ACCOUNT_SID") != "" {
+			fmt.Printf("📤 Resending SMS to: %s\n", oldOTP.Phone)
 			if err := utils.SendOTPSMS(oldOTP.Phone, otpCode); err != nil {
-				fmt.Printf("Failed to send SMS via Twilio: %v\n", err)
+				fmt.Printf("❌ Failed to resend SMS: %v\n\n", err)
+				smsStatus = "failed"
+			} else {
+				fmt.Printf("✅ SMS resent successfully\n\n")
+				smsStatus = "sent"
 			}
 		}
 	}
 
 	// Log for development
-	fmt.Printf("\n=== OTP Resent ===\n")
-	fmt.Printf("New OTP ID: %s\n", newOTP.ID)
-	fmt.Printf("OTP Code: %s\n", otpCode)
-	fmt.Printf("Expires At: %s\n", newOTP.ExpiresAt.Format(time.RFC3339))
-	fmt.Printf("==================\n\n")
+	fmt.Printf("\n═══════════════════════════════════════════\n")
+	fmt.Printf("         🔁 OTP RESENT                    \n")
+	fmt.Printf("═══════════════════════════════════════════\n")
+	fmt.Printf("New OTP ID:  %s\n", newOTP.ID)
+	fmt.Printf("OTP Code:    %s\n", otpCode)
+	fmt.Printf("Phone:       %s\n", oldOTP.Phone)
+	fmt.Printf("SMS Status:  %s\n", smsStatus)
+	fmt.Printf("Expires At:  %s\n", newOTP.ExpiresAt.Format("2006-01-02 15:04:05"))
+	fmt.Printf("═══════════════════════════════════════════\n\n")
 
 	// Response data
 	responseData := gin.H{
 		"otp_id":     newOTP.ID,
 		"expires_at": newOTP.ExpiresAt,
+		"sms_status": smsStatus,
 	}
 
 	// Only include OTP code in development mode
